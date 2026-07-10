@@ -57,3 +57,23 @@ and leave no trace. Test doc votes/zzz-selftest deleted with the CLI's admin
 token. CACHE_V now bigif-v4 (stale app.js bit again — bump on every change!).
 Remaining: deploy to GitHub Pages (needs Tucker's ok), set real APP_URL,
 two-device vote + cold ?q= test, delete _*.html test files at deploy.
+
+## 2026-07-10 (evening) — DEPLOYED (Claude Fable 5)
+Live at **https://tuckerstrachan414-maker.github.io/would-you/** (repo
+tuckerstrachan414-maker/would-you, GitHub Pages from main root). gh CLI is a
+portable zip in the session scratchpad (winget MSI failed with 1601); if a
+future session needs gh, re-download the windows_amd64 zip from cli/cli
+releases. Dev/test files (_*.html, _testresult.txt, start-server.bat) are
+gitignored — local only. start-server.bat calls python (not installed) — broken,
+not mine, left as-is.
+
+**Observed working on the deployed site:** all shell files serve 200 at correct
+sizes; deployed app.js has the live STATS_BACKEND; cold ?q=wyr-002 deep link
+opened in a browser, Tucker voted, and the Firestore count incremented
+(createTime 2026-07-10T22:55Z). That verifies share links + global stats
+end to end.
+
+**Still unverified (needs Tucker's phone):** Web Share sheet, real-device look,
+PWA install prompt (data-URI manifest icons may need real PNGs). App is still
+titled BIG IF; Tucker named the repo "Would You?" — rename offer is open
+(one constant + manifest + index.html title).
