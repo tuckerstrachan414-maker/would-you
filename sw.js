@@ -1,6 +1,6 @@
 // BIG IF service worker — cache-first for the app shell so it works offline
 // once installed. Bump CACHE_V when shipping changes so clients refresh.
-const CACHE_V = "bigif-v4";
+const CACHE_V = "bigif-v5";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "questions.js", "manifest.json", "fonts/PatrickHand-Regular.ttf"];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE_V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

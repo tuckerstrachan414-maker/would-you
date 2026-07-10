@@ -3,7 +3,7 @@
 // ================= config =================
 const APP_URL = location.origin.startsWith("http")
   ? location.origin + location.pathname.replace(/[^/]*$/, "")
-  : "https://example.github.io/big-if/"; // real URL set at deploy time
+  : "https://tuckerstrachan414-maker.github.io/would-you/"; // used when opened from file://
 
 // Firestore stats backend. null = stats disabled (pure local mode).
 // Filled in from BACKEND-SETUP.md once the Firebase project exists.
