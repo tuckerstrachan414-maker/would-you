@@ -10,7 +10,7 @@ const APP_URL = location.origin.startsWith("http")
 const STATS_BACKEND = { projectId: "big-if-tucker", apiKey: "AIzaSyAcgQy9eJCUFaK6EXySmBLW5MdkWYt7mV4" }; // public web config — safe to ship
 
 const CATS = ["silly", "gross", "food", "money", "powers", "deep", "spicy"];
-const CAT_EMOJI = { silly: "🤪", gross: "🤢", food: "🍕", money: "💰", powers: "⚡", deep: "🌌", spicy: "🌶️" };
+// category icons live in icons.js (CAT_ICON / catTag / icon)
 
 // ================= storage =================
 const STORE_KEY = "bigif-v1";
@@ -21,6 +21,9 @@ const DEFAULTS = {
   queue: [],       // pending votes not yet flushed to backend: { id, field }
   cats: [],        // enabled categories; empty = all
   streak: { last: "", count: 0 },
+  mode: null,      // "wyr" | "button" | "hypo" | "all" — null shows the picker
+  nick: "",        // optional name shown next to your hypo takes
+  myTakes: {},     // qid -> { text, name, t } — takes you submitted (pending approval)
 };
 let S = loadStore();
 
@@ -72,7 +75,8 @@ function fmtWhen(ts) {
 }
 function activeCats() { return S.cats.length ? S.cats : CATS; }
 function pool() {
-  return QUESTIONS.filter(q => activeCats().includes(q.cat));
+  const m = S.mode && S.mode !== "all" ? S.mode : null;
+  return QUESTIONS.filter(q => activeCats().includes(q.cat) && (!m || q.type === m));
 }
 
 // ================= picker (never-repeat) =================
@@ -134,6 +138,51 @@ function castVote(id, field) {
   });
 }
 
+// ================= hypo takes backend =================
+// One doc per submitted take; approved:false until Tucker flips it (approve.js).
+// Rules only let clients create {qid,text,name,t,approved:false} and read
+// approved ones, so the query below MUST filter approved == true.
+async function sendTake(qid, text, name) {
+  if (!STATS_BACKEND) return false;
+  const b = STATS_BACKEND;
+  const fields = {
+    qid: { stringValue: qid },
+    text: { stringValue: text.slice(0, 60) },
+    name: { stringValue: (name || "").slice(0, 20) },
+    t: { integerValue: String(Date.now()) },
+    approved: { booleanValue: false },
+  };
+  try {
+    const r = await fetch("https://firestore.googleapis.com/v1/projects/" + b.projectId +
+      "/databases/(default)/documents/takes?key=" + b.apiKey,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields }) });
+    return r.ok;
+  } catch (e) { return false; }
+}
+async function fetchTakes(qid) {
+  if (!STATS_BACKEND) return null;
+  const b = STATS_BACKEND;
+  const body = { structuredQuery: {
+    from: [{ collectionId: "takes" }],
+    where: { compositeFilter: { op: "AND", filters: [
+      { fieldFilter: { field: { fieldPath: "qid" }, op: "EQUAL", value: { stringValue: qid } } },
+      { fieldFilter: { field: { fieldPath: "approved" }, op: "EQUAL", value: { booleanValue: true } } },
+    ] } },
+    limit: 30,
+  } };
+  try {
+    const r = await fetch("https://firestore.googleapis.com/v1/projects/" + b.projectId +
+      "/databases/(default)/documents:runQuery?key=" + b.apiKey,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return rows.filter(x => x.document).map(x => {
+      const f = x.document.fields || {};
+      return { text: (f.text || {}).stringValue || "", name: (f.name || {}).stringValue || "", t: parseInt((f.t || {}).integerValue || "0", 10) };
+    }).sort((a, b2) => b2.t - a.t);
+  } catch (e) { return null; }
+}
+
 // ================= answering =================
 function recordAnswer(q, choice) {
   const ts = Date.now();
@@ -162,9 +211,36 @@ function shareQuestion(q) {
     navigator.share(payload).catch(() => {});
   } else {
     navigator.clipboard.writeText(text + "\n" + link)
-      .then(() => toast("Copied! Paste it to a friend 📋"))
-      .catch(() => toast("Couldn't copy 😞"));
+      .then(() => toast("Copied! Paste it to a friend"))
+      .catch(() => toast("Couldn't copy, sorry"));
   }
+}
+
+// ================= mode picker =================
+// Add a mode = append one row (icon comes from icons.js).
+const MODES = [
+  { id: "wyr",    title: "would you rather…", sub: "pick a side",        ic: "fork" },
+  { id: "button", title: "press the button",  sub: "tempting… but",      ic: "redbtn" },
+  { id: "hypo",   title: "hypotheticals",     sub: "type your take",     ic: "bubble" },
+  { id: "all",    title: "surprise me",       sub: "all of it, shuffled", ic: "shuffle" },
+];
+function renderModePicker(scr) {
+  scr.appendChild(el("h2", "screen-title picker-title", "what are we playing?"));
+  const grid = el("div", "mode-grid");
+  for (const m of MODES) {
+    const box = el("button", "mode-box wobble mode-" + m.id,
+      icon(m.ic, "mode-ic") + '<span class="mode-title">' + m.title + '</span><span class="mode-sub">' + m.sub + "</span>");
+    box.onclick = () => { S.mode = m.id; save(); current = null; renderPlay(); };
+    grid.appendChild(box);
+  }
+  scr.appendChild(grid);
+}
+function modeChip() {
+  const m = MODES.find(x => x.id === S.mode);
+  const chip = el("button", "mode-chip wobble-sm",
+    (m ? icon(m.ic) + " " + m.title : icon("shuffle") + " pick a mode") + '<span class="chip-switch">switch</span>');
+  chip.onclick = () => { S.mode = null; save(); current = null; renderPlay(); };
+  return chip;
 }
 
 // ================= play screen =================
@@ -173,7 +249,7 @@ let deepLinkId = null; // set from ?q= at boot, shown first
 
 function favBtnHtml(id) {
   return '<button class="fav-btn' + (S.favs.includes(id) ? " on" : "") + '" data-fav="' + id + '" aria-label="favourite">' +
-    (S.favs.includes(id) ? "⭐" : "☆") + "</button>";
+    icon("star") + "</button>";
 }
 
 function renderPlay() {
@@ -183,34 +259,40 @@ function renderPlay() {
     current = QBYID[deepLinkId];
     deepLinkId = null;
   } else if (!current) {
+    if (!S.mode) { renderModePicker(scr); return; }
     current = pickNext();
   }
   if (!current) { renderExhausted(scr); return; }
   const q = current;
+  scr.appendChild(modeChip());
   const card = el("div", "card wobble cat-" + q.cat);
   card.innerHTML =
-    '<div class="card-top"><span class="cat-tag">' + CAT_EMOJI[q.cat] + " " + q.cat + "</span>" + favBtnHtml(q.id) + "</div>" +
+    '<div class="card-top"><span class="cat-tag">' + catTag(q.cat) + "</span>" + favBtnHtml(q.id) + "</div>" +
     '<p class="q-text">' + esc(q.text) + "</p>";
   if (q.type === "wyr") {
-    card.appendChild(el("button", "opt opt-a", "🅰️ " + esc(q.a)));
+    card.appendChild(el("button", "opt opt-a", '<span class="ab">A</span> ' + esc(q.a)));
     card.appendChild(el("div", "or-divider", "or"));
-    card.appendChild(el("button", "opt opt-b", "🅱️ " + esc(q.b)));
+    card.appendChild(el("button", "opt opt-b", '<span class="ab">B</span> ' + esc(q.b)));
   } else if (q.type === "button") {
     card.appendChild(el("p", "q-catch", esc(q.catch)));
     card.appendChild(el("button", "big-button", "PRESS<br>IT"));
-    card.appendChild(el("button", "walk-away", "🚶 nah, walk away"));
+    card.appendChild(el("button", "walk-away", icon("walk") + " nah, walk away"));
   } else { // hypo
-    card.appendChild(el("p", "hypo-hint", "no right answer — just ponder it (or make a friend suffer)"));
-    card.appendChild(el("button", "next-btn", "next one →"));
+    card.appendChild(el("p", "hypo-hint", "no right answer — type yours, or just ponder it"));
+    const ta = el("textarea", "take-input");
+    ta.maxLength = 60; ta.rows = 2; ta.placeholder = "your take, 60 scribbles max…";
+    const nick = el("input", "nick-input");
+    nick.maxLength = 20; nick.placeholder = "name (optional)"; nick.value = S.nick || "";
+    card.appendChild(ta); card.appendChild(nick);
+    card.appendChild(el("button", "next-btn take-send", icon("pencil") + " share my take"));
+    card.appendChild(el("button", "peek-btn", "just show me what others said →"));
   }
   const actions = el("div", "card-actions");
-  const shareB = el("button", "share-btn", "📤 send to a friend");
+  const shareB = el("button", "share-btn", icon("share") + " send to a friend");
   actions.appendChild(shareB);
-  if (q.type !== "hypo") {
-    const skipB = el("button", "skip-btn", "skip →");
-    skipB.onclick = () => { markSeen(q); current = null; renderPlay(); };
-    actions.appendChild(skipB);
-  }
+  const skipB = el("button", "skip-btn", "skip →");
+  skipB.onclick = () => { markSeen(q); current = null; renderPlay(); };
+  actions.appendChild(skipB);
   scr.appendChild(card);
   scr.appendChild(actions);
 
@@ -223,17 +305,67 @@ function renderPlay() {
     card.querySelector(".big-button").onclick = () => answer(q, "press");
     card.querySelector(".walk-away").onclick = () => answer(q, "walk");
   } else {
-    card.querySelector(".next-btn").onclick = () => { recordAnswer(q, null); current = null; renderPlay(); };
+    card.querySelector(".take-send").onclick = () => {
+      const text = card.querySelector(".take-input").value.trim();
+      if (!text) { toast("Scribble something first!"); return; }
+      S.nick = card.querySelector(".nick-input").value.trim();
+      recordAnswer(q, null);
+      const mine = { text, name: S.nick, t: Date.now() };
+      S.myTakes[q.id] = mine; save();
+      sendTake(q.id, text, S.nick).then(ok => { if (!ok) toast("No signal — take not sent"); });
+      renderTakes(q);
+    };
+    card.querySelector(".peek-btn").onclick = () => { recordAnswer(q, null); renderTakes(q); };
+  }
+}
+
+// ================= hypo takes screen =================
+async function renderTakes(q) {
+  const scr = document.getElementById("screen");
+  scr.innerHTML = "";
+  const card = el("div", "card wobble cat-" + q.cat);
+  card.innerHTML =
+    '<div class="card-top"><span class="cat-tag">' + catTag(q.cat) + "</span>" + favBtnHtml(q.id) + "</div>" +
+    '<p class="q-text small">' + esc(q.text) + "</p>" +
+    '<h3 class="takes-title">' + icon("bubble") + ' what people said</h3>' +
+    '<div class="takes-zone"><p class="stats-wait">' + icon("pencil") + " gathering takes…</p></div>";
+  scr.appendChild(card);
+  const nextB = el("button", "next-btn big", "next one →");
+  nextB.onclick = () => { current = null; renderPlay(); };
+  scr.appendChild(nextB);
+  card.querySelector("[data-fav]").onclick = () => { toggleFav(q.id); renderTakes(q); };
+  const zone = card.querySelector(".takes-zone");
+  const takes = await fetchTakes(q.id);
+  zone.innerHTML = "";
+  const mine = S.myTakes[q.id];
+  if (mine) {
+    zone.appendChild(el("div", "take-row mine wobble-sm",
+      '<p class="take-text">' + esc(mine.text) + "</p>" +
+      '<p class="take-meta">you' + (mine.name ? " (" + esc(mine.name) + ")" : "") + " — pending Tucker's approval</p>"));
+  }
+  if (takes === null) {
+    zone.appendChild(el("p", "stats-wait", icon("pencil") + " no signal — try again when you're online"));
+  } else if (!takes.length) {
+    zone.appendChild(el("p", "empty-note", "No takes yet — yours could be the first!"));
+  } else {
+    for (const t of takes) {
+      zone.appendChild(el("div", "take-row wobble-sm",
+        '<p class="take-text">' + esc(t.text) + "</p>" +
+        (t.name ? '<p class="take-meta">— ' + esc(t.name) + "</p>" : "")));
+    }
   }
 }
 
 function renderExhausted(scr) {
   const card = el("div", "card wobble exhausted");
-  card.innerHTML = '<p class="q-text">🎉 You have pondered ALL ' + pool().length +
-    ' questions in this mix!</p><p class="hypo-hint">You can replay old ones (stats still count), or widen your categories in More.</p>';
-  const b = el("button", "next-btn", "🔁 replay the oldies");
+  card.innerHTML = '<p class="q-text">' + icon("party") + ' You have pondered ALL ' + pool().length +
+    ' questions in this mix!</p><p class="hypo-hint">Replay old ones (stats still count), switch mode below, or widen your categories in More.</p>';
+  const b = el("button", "next-btn", icon("recycle") + " replay the oldies");
   b.onclick = () => { current = pickRecycled(); renderPlay(); };
   card.appendChild(b);
+  const sw = el("button", "peek-btn", icon("shuffle") + " switch mode");
+  sw.onclick = () => { S.mode = null; save(); current = null; renderPlay(); };
+  card.appendChild(sw);
   scr.appendChild(card);
 }
 
@@ -244,7 +376,7 @@ function answer(q, choice) {
 }
 function labelFor(q, field) {
   if (q.type === "wyr") return field === "a" ? q.a : q.b;
-  return field === "press" ? "PRESSED IT 🔴" : "walked away 🚶";
+  return field === "press" ? "PRESSED IT" : "walked away";
 }
 function fieldsFor(q) { return q.type === "wyr" ? ["a", "b"] : ["press", "walk"]; }
 
@@ -253,20 +385,20 @@ async function renderReveal(q, choice) {
   scr.innerHTML = "";
   const card = el("div", "card wobble cat-" + q.cat);
   card.innerHTML =
-    '<div class="card-top"><span class="cat-tag">' + CAT_EMOJI[q.cat] + " " + q.cat + "</span>" + favBtnHtml(q.id) + "</div>" +
+    '<div class="card-top"><span class="cat-tag">' + catTag(q.cat) + "</span>" + favBtnHtml(q.id) + "</div>" +
     '<p class="q-text small">' + esc(q.text) + (q.catch ? " " + esc(q.catch) : "") + "</p>" +
     '<p class="you-picked">you picked: <b>' + esc(labelFor(q, choice)) + "</b></p>" +
-    '<div class="stats-zone"><p class="stats-wait">counting the votes… ✏️</p></div>';
+    '<div class="stats-zone"><p class="stats-wait">' + icon("pencil") + ' counting the votes…</p></div>';
   scr.appendChild(card);
   const nextB = el("button", "next-btn big", "next one →");
   nextB.onclick = () => { current = null; renderPlay(); };
   const actions = el("div", "card-actions");
-  const shareB = el("button", "share-btn", "📤 send to a friend");
+  const shareB = el("button", "share-btn", icon("share") + " send to a friend");
   shareB.onclick = () => shareQuestion(q);
   actions.appendChild(shareB);
   scr.appendChild(nextB);
   scr.appendChild(actions);
-  card.querySelector("[data-fav]").onclick = () => { toggleFav(q.id); card.querySelector(".card-top").outerHTML = '<div class="card-top"><span class="cat-tag">' + CAT_EMOJI[q.cat] + " " + q.cat + "</span>" + favBtnHtml(q.id) + "</div>"; renderReveal(q, choice); };
+  card.querySelector("[data-fav]").onclick = () => { toggleFav(q.id); card.querySelector(".card-top").outerHTML = '<div class="card-top"><span class="cat-tag">' + catTag(q.cat) + "</span>" + favBtnHtml(q.id) + "</div>"; renderReveal(q, choice); };
 
   const zone = card.querySelector(".stats-zone");
   const counts = await fetchCounts(q.id);
@@ -276,7 +408,7 @@ async function renderReveal(q, choice) {
 function renderStatsBar(zone, q, choice, counts) {
   const [f1, f2] = fieldsFor(q);
   if (!counts) {
-    zone.innerHTML = '<p class="stats-wait">📡 no signal — your vote is saved and will count later!</p>';
+    zone.innerHTML = '<p class="stats-wait">' + icon("pencil") + ' no signal — your vote is saved and will count later!</p>';
     return;
   }
   let c1 = counts[f1] || 0, c2 = counts[f2] || 0;
@@ -286,10 +418,10 @@ function renderStatsBar(zone, q, choice, counts) {
   const total = c1 + c2;
   const p1 = Math.round(100 * c1 / total), p2 = 100 - p1;
   const yourPct = choice === f1 ? p1 : p2;
-  const msg = yourPct < 35 ? "🔥 HOT TAKE — you're with just " + yourPct + "%!"
-    : yourPct < 50 ? "😏 minority club: " + yourPct + "% agree with you"
-    : yourPct === 50 ? "⚖️ dead even split!"
-    : "🤝 you're with the " + yourPct + "% majority";
+  const msg = yourPct < 35 ? icon("flame") + " HOT TAKE — you're with just " + yourPct + "%!"
+    : yourPct < 50 ? icon("smirk") + " minority club: " + yourPct + "% agree with you"
+    : yourPct === 50 ? icon("scales") + " dead even split!"
+    : icon("crowd") + " you're with the " + yourPct + "% majority";
   zone.innerHTML =
     '<div class="bar"><div class="bar-a" style="width:0%"></div><div class="bar-b" style="width:0%"></div></div>' +
     '<div class="bar-labels"><span>' + p1 + "% " + esc(shortLabel(q, f1)) + "</span><span>" + p2 + "% " + esc(shortLabel(q, f2)) + "</span></div>" +
@@ -314,7 +446,7 @@ function questionRow(h) {
   const picked = h.choice ? '<span class="hist-pick">' + esc(labelFor(q, h.choice)) + "</span>" : "";
   row.innerHTML =
     '<div class="hist-main"><p class="hist-q">' + esc(q.text) + (q.type === "wyr" ? " " + esc(q.a) + " / " + esc(q.b) : q.catch ? " " + esc(q.catch) : "") + "</p>" +
-    '<p class="hist-meta">' + CAT_EMOJI[q.cat] + " " + fmtWhen(h.ts) + " " + picked + "</p></div>" +
+    '<p class="hist-meta">' + icon(CAT_ICON[q.cat]) + " " + fmtWhen(h.ts) + " " + picked + "</p></div>" +
     favBtnHtml(q.id);
   row.querySelector("[data-fav]").onclick = (e) => { e.stopPropagation(); toggleFav(q.id); render(); };
   row.querySelector(".hist-main").onclick = () => { current = q; location.hash = "#play"; };
@@ -322,14 +454,14 @@ function questionRow(h) {
 }
 function renderHistory() {
   const scr = document.getElementById("screen");
-  scr.innerHTML = '<h2 class="screen-title">🕰️ your history</h2>';
+  scr.innerHTML = '<h2 class="screen-title">' + icon("clock") + ' your history</h2>';
   const items = S.history.slice().reverse();
   if (!items.length) { scr.appendChild(el("p", "empty-note", "Nothing yet — go ponder something!")); return; }
   for (const h of items) { const r = questionRow(h); if (r) scr.appendChild(r); }
 }
 function renderFavs() {
   const scr = document.getElementById("screen");
-  scr.innerHTML = '<h2 class="screen-title">⭐ favourites</h2>';
+  scr.innerHTML = '<h2 class="screen-title">' + icon("star") + ' favourites</h2>';
   if (!S.favs.length) { scr.appendChild(el("p", "empty-note", "Star a question and it lands here.")); return; }
   for (const id of S.favs.slice().reverse()) {
     const h = S.history.slice().reverse().find(x => x.id === id) || { id, ts: S.seen[id] || Date.now(), choice: null };
@@ -344,13 +476,13 @@ function renderStats() {
   const pressed = answered.filter(h => h.choice === "press").length;
   const walked = answered.filter(h => h.choice === "walk").length;
   const seenCount = Object.keys(S.seen).length;
-  scr.innerHTML = '<h2 class="screen-title">📊 your stats</h2>' +
+  scr.innerHTML = '<h2 class="screen-title">' + icon("bars") + ' your stats</h2>' +
     statTile(seenCount + " / " + QUESTIONS.length, "questions pondered") +
     statTile(answered.length, "answers locked in") +
-    statTile("🔴 " + pressed + " vs 🚶 " + walked, "buttons pressed vs walked") +
-    statTile("🔥 " + S.streak.count + " day" + (S.streak.count === 1 ? "" : "s"), "current streak") +
+    statTile(icon("redbtn") + " " + pressed + " vs " + icon("walk") + " " + walked, "buttons pressed vs walked") +
+    statTile(icon("flame") + " " + S.streak.count + " day" + (S.streak.count === 1 ? "" : "s"), "current streak") +
     statTile(S.favs.length, "favourites starred") +
-    (STATS_BACKEND ? "" : '<p class="empty-note">🌍 global percentages switch on once the app is online with its stats backend.</p>');
+    (STATS_BACKEND ? "" : '<p class="empty-note">' + icon("globe") + ' global percentages switch on once the app is online with its stats backend.</p>');
 }
 function statTile(big, label) {
   return '<div class="stat-tile wobble-sm"><div class="stat-big">' + big + '</div><div class="stat-label">' + label + "</div></div>";
@@ -359,25 +491,25 @@ function statTile(big, label) {
 // ================= more / settings =================
 function renderMore() {
   const scr = document.getElementById("screen");
-  scr.innerHTML = '<h2 class="screen-title">⚙️ more</h2><p class="setting-label">categories in your mix:</p>';
+  scr.innerHTML = '<h2 class="screen-title">' + icon("gear") + ' more</h2><p class="setting-label">categories in your mix:</p>';
   const chipbox = el("div", "chips");
   for (const c of CATS) {
     const on = activeCats().includes(c);
-    const chip = el("button", "chip" + (on ? " on" : ""), CAT_EMOJI[c] + " " + c);
+    const chip = el("button", "chip" + (on ? " on" : ""), catTag(c));
     chip.onclick = () => {
       let cats = S.cats.length ? S.cats.slice() : CATS.slice();
       cats = cats.includes(c) ? cats.filter(x => x !== c) : cats.concat(c);
-      if (!cats.length) { toast("Need at least one category! 😅"); return; }
+      if (!cats.length) { toast("Need at least one category!"); return; }
       S.cats = cats.length === CATS.length ? [] : cats;
       save(); current = null; renderMore();
     };
     chipbox.appendChild(chip);
   }
   scr.appendChild(chipbox);
-  const reset = el("button", "danger-btn", "🗑️ forget everything I've seen");
+  const reset = el("button", "danger-btn", icon("bin") + " forget everything I've seen");
   reset.onclick = () => {
     if (!confirm("Wipe history, favourites and seen-list? Global votes you cast stay counted.")) return;
-    S = structuredClone(DEFAULTS); save(); current = null; toast("Fresh brain! 🧠");
+    S = structuredClone(DEFAULTS); save(); current = null; toast("Fresh brain!");
     renderMore();
   };
   scr.appendChild(el("p", "setting-label", "danger zone:"));
@@ -400,6 +532,9 @@ window.addEventListener("hashchange", render);
 document.querySelectorAll(".tab").forEach(b => b.onclick = () => { location.hash = "#" + b.dataset.tab; });
 
 (function boot() {
+  document.querySelectorAll(".tab[data-ic]").forEach(b => b.insertAdjacentHTML("afterbegin", icon(b.dataset.ic)));
+  const st = document.getElementById("streak");
+  if (st) st.insertAdjacentHTML("afterbegin", icon("flame"));
   const qid = new URLSearchParams(location.search).get("q");
   if (qid && QBYID[qid]) { deepLinkId = qid; location.hash = "#play"; }
   bumpStreak();

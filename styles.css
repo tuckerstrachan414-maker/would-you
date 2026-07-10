@@ -133,3 +133,54 @@ button { font-family: inherit; color: var(--ink); cursor: pointer; }
 
 /* exhausted */
 .exhausted { text-align: center; }
+
+/* ============ round 2: sprites, mode picker, takes ============ */
+.ic { width: 1.15em; height: 1.15em; vertical-align: -0.18em; }
+.screen-title .ic, .stat-big .ic { width: 1.05em; height: 1.05em; }
+.tab .ic { width: 26px; height: 26px; display: block; margin: 0 auto 1px; }
+.tab.active .ic { color: var(--coral); }
+#streak .ic { color: var(--tang); width: 22px; height: 22px; }
+.fav-btn .ic { width: 26px; height: 26px; }
+.fav-btn.on .ic { fill: var(--sun); }
+.ab { display: inline-block; width: 26px; height: 26px; line-height: 22px; text-align: center;
+  border: 2.5px solid var(--ink); border-radius: 12px 5px 10px 6px / 6px 10px 5px 12px;
+  background: var(--sun); font-size: 16px; margin-right: 4px; }
+.opt-b .ab { background: var(--sky); }
+
+/* mode picker */
+.picker-title { transform: rotate(-1.5deg); }
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 4px 2px; }
+.mode-box { display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 18px 10px 14px; font-family: inherit; transition: transform .08s; }
+.mode-box:active { transform: scale(.95) rotate(1deg); }
+.mode-box .mode-ic { width: 52px; height: 52px; }
+.mode-title { font-size: 20px; line-height: 1.05; }
+.mode-sub { font-size: 14px; opacity: .65; }
+.mode-wyr    { background: #e3f6fc; transform: rotate(-1.2deg); }
+.mode-wyr .mode-ic { color: var(--sky); }
+.mode-button { background: #ffe9e9; transform: rotate(1deg); }
+.mode-button .mode-ic { color: var(--coral); }
+.mode-hypo   { background: #f0e9ff; transform: rotate(1.4deg); }
+.mode-hypo .mode-ic { color: var(--grape); }
+.mode-all    { background: linear-gradient(135deg, #fff6d8 0%, #e8fbe4 55%, #e3f6fc 100%); transform: rotate(-0.8deg); }
+.mode-all .mode-ic { color: var(--tang); }
+.mode-chip { display: inline-flex; align-items: center; gap: 7px; font-family: inherit;
+  font-size: 16px; padding: 5px 12px; background: #fff; margin: 0 0 10px 4px; cursor: pointer; }
+.mode-chip .chip-switch { font-size: 13px; opacity: .6; text-decoration: underline wavy; }
+
+/* hypo takes */
+.take-input { width: 100%; font-family: inherit; font-size: 20px; color: var(--ink);
+  border: 3px solid var(--ink); border-radius: 14px 5px 12px 6px / 6px 12px 5px 14px;
+  background: #fffdf6; padding: 10px 12px; resize: none; }
+.take-input:focus, .nick-input:focus { outline: 3px dashed var(--sky); outline-offset: 2px; }
+.nick-input { width: 60%; font-family: inherit; font-size: 16px; color: var(--ink);
+  border: 2.5px solid var(--ink); border-radius: 12px 5px 10px 6px / 6px 10px 5px 12px;
+  background: #fffdf6; padding: 6px 10px; margin-top: 8px; }
+.take-send { margin-top: 10px; }
+.peek-btn { font-family: inherit; font-size: 16px; background: none; border: none;
+  color: var(--ink); opacity: .7; text-decoration: underline wavy; padding: 8px 2px; text-align: left; }
+.takes-title { font-size: 20px; margin: 14px 0 8px; transform: rotate(-0.7deg); }
+.take-row { background: #fffdf6; padding: 8px 12px; margin: 8px 0; }
+.take-row.mine { background: #fff6d8; }
+.take-text { font-size: 19px; }
+.take-meta { font-size: 14px; opacity: .6; margin-top: 2px; }

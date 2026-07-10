@@ -77,3 +77,27 @@ end to end.
 PWA install prompt (data-URI manifest icons may need real PNGs). App is still
 titled BIG IF; Tucker named the repo "Would You?" — rename offer is open
 (one constant + manifest + index.html title).
+
+## 2026-07-10 (round 2) — mode picker, typed takes, sprite icons (Claude Fable 5)
+Three features shipped: (1) **mode picker** — Play now opens on four themed
+wobble boxes (wyr / button / hypo / surprise-me), MODES registry in app.js,
+S.mode in store, mode chip on cards to switch; (2) **typed hypo answers** —
+60-char textarea + optional 20-char nickname on hypo cards, stored in a new
+Firestore `takes` collection with approved:false; only approved takes are
+client-readable (rules enforce), Tucker moderates with approve.bat/approve.js
+(runs anywhere `firebase login` was done); (3) **all emoji replaced** with the
+ICON scribble-SVG registry in new icons.js (tab sprites injected at boot from
+data-ic attrs; emoji remain only in question text + share message).
+
+**Browser-verified over localhost:** _selftest 30/30 (picker boot, mode
+persistence + filtering 15/15 draws, take flow local state, never-repeat,
+history/favs/stats/chips, emoji scan on every screen, deep link beats picker,
+offline queue — firestore stubbed so tests don't pollute real stats);
+_taketest 7/7 live (take accepted, pending invisible to anon queries, rules
+403 on 61-char / pre-approved / bogus-field writes); approve.js run for real
+(listed pending take with question text, approved it, anon query then saw it,
+test doc deleted); _layouttest 20/20 at 390px (picker grid, textarea, reveal,
+sprites, no overflow). CACHE_V now **bigif-v6**, icons.js added to SW SHELL.
+
+**Not verified:** real-phone look of the new picker/sprites; a genuine
+end-to-end take from the deployed site (needs a human to type one).

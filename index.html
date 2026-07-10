@@ -13,22 +13,23 @@
 <div id="app">
   <header id="topbar">
     <h1 id="logo">BIG<span> IF</span></h1>
-    <div id="streak" title="daily streak" hidden>🔥<span id="streak-n"></span></div>
+    <div id="streak" title="daily streak" hidden><span id="streak-n"></span></div>
   </header>
 
   <main id="screen"><!-- rendered by app.js --></main>
 
   <nav id="tabs">
-    <button data-tab="play"    class="tab">🎲<span>Play</span></button>
-    <button data-tab="history" class="tab">🕰️<span>History</span></button>
-    <button data-tab="favs"    class="tab">⭐<span>Faves</span></button>
-    <button data-tab="stats"   class="tab">📊<span>Stats</span></button>
-    <button data-tab="more"    class="tab">⚙️<span>More</span></button>
+    <button data-tab="play"    data-ic="play"  class="tab"><span>Play</span></button>
+    <button data-tab="history" data-ic="clock" class="tab"><span>History</span></button>
+    <button data-tab="favs"    data-ic="star"  class="tab"><span>Faves</span></button>
+    <button data-tab="stats"   data-ic="bars"  class="tab"><span>Stats</span></button>
+    <button data-tab="more"    data-ic="gear"  class="tab"><span>More</span></button>
   </nav>
 
   <div id="toast" hidden></div>
 </div>
 <script src="questions.js"></script>
+<script src="icons.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
