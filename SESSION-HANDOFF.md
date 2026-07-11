@@ -101,3 +101,6 @@ sprites, no overflow). CACHE_V now **bigif-v6**, icons.js added to SW SHELL.
 
 **Not verified:** real-phone look of the new picker/sprites; a genuine
 end-to-end take from the deployed site (needs a human to type one).
+
+## 2026-07-10 (round 3) — bank expanded to 1500 (Claude Fable 5)
+500 wyr / 500 button / 500 hypo. New IDs wyr-221..500, btn-126..500, hyp-061..500; existing untouched. Validator 0 dup ids/content; selftest 30/30; CACHE_V bigif-v7.

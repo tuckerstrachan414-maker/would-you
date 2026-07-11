@@ -29,8 +29,8 @@ No build step, vanilla JS, opens from file:// (live stats degrade gracefully).
   are exempt: dev/test scratch, never cached.)
 
 ## Layout
-- questions.js — the bank (405 questions: wyr-001..220, btn-001..125,
-  hyp-001..060; cats: silly/gross/food/money/powers/deep/spicy)
+- questions.js — the bank (1500 questions: wyr-001..500, btn-001..500,
+  hyp-001..500; 500 of each type; cats: silly/gross/food/money/powers/deep/spicy)
 - icons.js — ICON scribble-SVG registry + icon()/catTag() helpers
 - approve.js / approve.bat — Tucker's take-moderation CLI (admin creds via
   firebase-tools login; safe to commit, contains no secrets)
