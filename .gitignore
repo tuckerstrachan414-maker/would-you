@@ -1,4 +1,0 @@
-# dev test harness — local only
-_*.html
-_testresult.txt
-start-server.bat
