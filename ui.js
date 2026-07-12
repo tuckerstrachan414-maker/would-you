@@ -6,8 +6,8 @@ const Game = window.MonopolyGame, AI = window.MonopolyAI;
 const { SPACES, GROUPS } = window.MONOPOLY_DATA;
 const SAVE_KEY = "monopoly-v1";
 
-const PLAYER_COLORS = ["#ff6b6b", "#45c4e0", "#9ede4f", "#b28dff", "#ff9f45", "#5fe0b7"];
-const BOT_NAMES = ["Botrick", "Tin Tina", "Chip", "Robo Rico", "Beep"];
+const PLAYER_COLORS = ["#d95f5f", "#5aa7e8", "#8fc95a", "#a97fe8", "#e0a44f", "#5fd0b0"];
+const BOT_NAMES = ["The Duke", "Vivienne", "Mr. Ashford", "Contessa", "Sterling"];
 
 // Scribble icon registry, same convention as ../icons.js — no emoji in chrome.
 const M_ICON = {
@@ -29,6 +29,15 @@ const M_ICON = {
 function micon(name, cls) {
   return '<svg class="ic' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (M_ICON[name] || "") + "</svg>";
 }
+
+// Tile icons (Claude Design): luxury item climbs with the colour group's value.
+// coin < cash < ring < watch < pearls < trophy < diamond < crown
+const GROUP_ICON = {
+  brown: "🪙", lblue: "💵", pink: "💍", orange: "⌚",
+  red: "📿", yellow: "🏆", green: "💎", dblue: "👑",
+};
+// rails / utilities / taxes by space index
+const SPACE_ICON = { 5: "🚂", 15: "🚂", 25: "🚂", 35: "🚂", 12: "💡", 28: "🚰", 4: "💸", 38: "🎩" };
 
 let G = null;            // current game state (engine object)
 let botTimer = null;
@@ -179,13 +188,16 @@ function cellHTML(i) {
   let inner = "";
   if (s.kind === "prop") {
     inner += '<div class="band" style="background:' + GROUPS[s.group].color + '"></div>' +
+             '<span class="gico">' + GROUP_ICON[s.group] + "</span>" +
              '<span class="price">' + s.price + "</span>";
   } else if (s.kind === "rail" || s.kind === "util") {
-    inner += '<div class="spico">' + micon(s.kind === "rail" ? "train" : (i === 12 ? "bulb" : "drop")) + "</div>" +
+    inner += '<span class="gico">' + SPACE_ICON[i] + "</span>" +
              '<span class="price">' + s.price + "</span>";
   } else if (s.kind === "tax") {
-    inner += '<div class="spico">' + micon(i === 4 ? "cash" : "gem") + "</div>" +
+    inner += '<span class="gico">' + SPACE_ICON[i] + "</span>" +
              '<span class="price">' + s.amount + "</span>";
+  } else if (s.kind === "chance" || s.kind === "chest") {
+    inner += '<span class="cglyph">' + (s.kind === "chance" ? "?" : "◈") + "</span>";
   } else {
     inner += '<div class="spico">' + micon(SPECIAL_ICON[s.kind]) + "</div>";
   }
@@ -200,21 +212,36 @@ function cellHTML(i) {
     inner += '<div class="ownerbar" style="background:' + G.players[st.owner].color + '"></div>';
   }
   const cls = "cell" + (corner ? " corner" : "") + (st && st.mortgaged ? " mortgaged" : "") +
+    (st && st.owner !== -1 ? " owned" : "") +
+    (s.kind === "chance" || s.kind === "chest" ? " " + s.kind : "") +
     (Game.cur(G).pos === i ? " here" : "");
   return '<div class="' + cls + '" data-i="' + i + '" style="grid-row:' + r + ";grid-column:" + c + '" title="' + esc(s.name) + '">' + inner + "</div>";
+}
+
+function pileHTML(kind) {
+  const face = kind === "chance"
+    ? '<span class="glyph">?</span><span class="label">Chance</span>'
+    : '<span class="glyph">◈</span><span class="label">Community<br>Chest</span>';
+  const picking = flashCard && flashCard.deck === kind ? " data-picking" : "";
+  return '<div class="pile ' + kind + '"' + picking + ">" +
+    '<div class="pile-card back2"></div>' +
+    '<div class="pile-card back1"></div>' +
+    '<div class="pile-card top">' + face + "</div>" +
+    '<div class="pile-card flyer">' + face + "</div></div>";
 }
 
 function centerHTML() {
   const p = Game.cur(G);
   const whose = p.name.toLowerCase() === "you" ? "Your turn" : p.name + "'s turn";
-  let h = '<div class="whose">' + esc(whose) + "</div>";
+  let h = '<div class="brandline"><span class="brand">After Hours</span><span class="brandsub">Private Club</span></div>' +
+    '<div class="whose">' + esc(whose) + "</div>";
   if (G.dice) h += '<div class="dice"><span class="die">' + G.dice[0] + '</span><span class="die">' + G.dice[1] + "</span></div>";
   if (flashCard) {
-    h += '<div class="cardflash"><span class="cardkind">' +
-      (flashCard.deck === "chance" ? micon("quest") + " Chance" : micon("chest") + " Community Chest") +
+    h += '<div class="cardflash reveal"><span class="cardkind">' +
+      (flashCard.deck === "chance" ? "? Chance" : "◈ Community Chest") +
       "</span>" + esc(flashCard.text) + "</div>";
   }
-  return '<div id="center">' + h + "</div>";
+  return '<div id="center">' + pileHTML("chance") + pileHTML("chest") + h + "</div>";
 }
 
 function actionsHTML() {
@@ -241,14 +268,14 @@ function actionsHTML() {
       (has("bankrupt") ? '<button class="btn btn-warn" data-act="bankrupt">Go bankrupt</button>' : "");
   } else if (G.phase === "roll" && p.inJail) {
     h += '<div class="say">' + micon("jail") + " In Jail (attempt " + (p.jailTurns + 1) + "/3)</div>" +
-      '<button class="btn btn-big" data-act="roll">' + micon("dice") + " Roll for doubles</button>" +
+      '<button class="btn btn-big" data-act="roll">🎲&nbsp; Roll for doubles</button>' +
       '<button class="btn" data-act="payJail"' + (has("payJail") ? "" : " disabled") + ">Pay $50</button>" +
       (has("useJailCard") ? '<button class="btn" data-act="useJailCard">Use card</button>' : "");
   } else if (G.phase === "roll") {
-    h += '<button class="btn btn-big" data-act="roll">' + micon("dice") + " Roll dice</button>";
+    h += '<button class="btn btn-big" data-act="roll">🎲&nbsp; Roll dice</button>';
   } else if (G.phase === "manage") {
     h += (G.mustRollAgain
-        ? '<button class="btn btn-big" data-act="roll">' + micon("dice") + " Doubles! Roll again</button>"
+        ? '<button class="btn btn-big" data-act="roll">🎲&nbsp; Doubles! Roll again</button>'
         : '<button class="btn btn-big" data-act="endTurn">End turn</button>') +
       '<button class="btn" data-act="assets">' + micon("hammer") + " Assets</button>";
   }
@@ -262,25 +289,33 @@ function render() {
   for (let i = 0; i < 40; i++) cells += cellHTML(i);
   const p = Game.cur(G);
   const strips = G.players.map(q =>
-    '<span class="pstrip wobble-sm' + (q.bankrupt ? " dead" : "") + '">' +
+    '<span class="pstrip' + (q.bankrupt ? " dead" : "") + (q.id === p.id && !q.bankrupt ? " active" : "") + '">' +
       '<span class="color-dot" style="background:' + q.color + '"></span>' +
       esc(q.name) + " $" + q.cash +
       (q.inJail ? " " + micon("jail") : "") + "</span>").join("");
   $("#screen").innerHTML =
     '<div id="board">' + cells + centerHTML() + "</div>" +
     '<div id="hud">' +
-      '<div id="turnbar" class="wobble-sm">' +
-        '<span class="color-dot" style="background:' + p.color + '"></span>' +
+      '<div id="turnbar">' +
+        '<span class="color-dot glow" style="background:' + p.color + ";color:" + p.color + '"></span>' +
         '<span class="who">' + esc(p.name) + (p.human ? "" : " (bot)") + "</span>" +
         '<span class="cash">$' + p.cash + "</span></div>" +
       '<div id="actions">' + actionsHTML() + "</div>" +
       '<div id="players">' + strips + "</div>" +
-      '<div id="log">' + G.log.slice(-14).map(l => "<p>" + esc(l) + "</p>").join("") + "</div>" +
+      '<div id="logbox"><div class="log-title">Game log</div>' +
+        '<div id="log">' + G.log.slice(-14).map(l => "<p>" + esc(l) + "</p>").join("") + "</div></div>" +
     "</div>";
   const logEl = $("#log");
   logEl.scrollTop = logEl.scrollHeight;
   $("#screen").querySelectorAll(".cell").forEach(el =>
     el.addEventListener("click", () => showDeed(+el.dataset.i)));
+  // tapping a stack replays the pickup flourish (drawing happens by landing)
+  $("#screen").querySelectorAll(".pile").forEach(el =>
+    el.addEventListener("click", () => {
+      if (el.hasAttribute("data-picking")) return;
+      el.setAttribute("data-picking", "");
+      setTimeout(() => el.removeAttribute("data-picking"), 1000);
+    }));
   $("#actions").querySelectorAll("[data-act]").forEach(b =>
     b.addEventListener("click", () => {
       const t = b.dataset.act;
@@ -300,29 +335,39 @@ document.addEventListener("click", (e) => {
   if (e.target.id === "modal-wrap") closeModal();
 });
 
+function deedHead(s) {
+  const color = s.group ? GROUPS[s.group].color : "#3a5040";
+  return '<div class="deed-band" style="background:' + color + '"><span class="kicker">Title Deed</span></div>' +
+    '<h2 class="deed-title">' + esc(s.name) + "</h2>" +
+    '<div class="deed-sub">Price · $' + s.price + "</div>";
+}
+
 function showDeed(i) {
   const s = SPACES[i], st = G.props[i];
   let body = "";
   if (s.kind === "prop") {
-    body += '<div class="deed-band" style="background:' + GROUPS[s.group].color + '"></div>' +
-      "<table>" +
-      "<tr><td>Price</td><td>$" + s.price + "</td></tr>" +
+    body += deedHead(s) +
+      '<table class="rent-table">' +
       "<tr><td>Rent</td><td>$" + s.rents[0] + "</td></tr>" +
-      "<tr><td>&hellip;with full colour set</td><td>$" + s.rents[0] * 2 + "</td></tr>" +
-      [1, 2, 3, 4].map(n => "<tr><td>&hellip;with " + n + " house" + (n > 1 ? "s" : "") + "</td><td>$" + s.rents[n] + "</td></tr>").join("") +
-      "<tr><td>&hellip;with hotel</td><td>$" + s.rents[5] + "</td></tr>" +
-      "<tr><td>House cost</td><td>$" + s.houseCost + "</td></tr>" +
-      "<tr><td>Mortgage value</td><td>$" + Math.floor(s.price / 2) + "</td></tr>" +
-      "</table>";
+      "<tr><td>With colour set</td><td>$" + s.rents[0] * 2 + "</td></tr>" +
+      '<tr class="grp"><td colspan="2">With houses</td></tr>' +
+      [1, 2, 3, 4].map(n => "<tr><td>" + n + " house" + (n > 1 ? "s" : "") + "</td><td>$" + s.rents[n] + "</td></tr>").join("") +
+      "<tr><td>Hotel</td><td>$" + s.rents[5] + "</td></tr>" +
+      "</table>" +
+      '<div class="deed-foot">Mortgage value $' + Math.floor(s.price / 2) + " · Houses cost $" + s.houseCost + " each</div>";
   } else if (s.kind === "rail") {
-    body += "<table><tr><td>Price</td><td>$200</td></tr>" +
+    body += deedHead(s) +
+      '<table class="rent-table">' +
       [1, 2, 3, 4].map(n => "<tr><td>Rent with " + n + " railroad" + (n > 1 ? "s" : "") + "</td><td>$" + 25 * Math.pow(2, n - 1) + "</td></tr>").join("") +
-      "<tr><td>Mortgage value</td><td>$100</td></tr></table>";
+      "</table>" +
+      '<div class="deed-foot">Mortgage value $100</div>';
   } else if (s.kind === "util") {
-    body += "<table><tr><td>Price</td><td>$150</td></tr>" +
+    body += deedHead(s) +
+      '<table class="rent-table">' +
       "<tr><td>Rent (one utility)</td><td>4 &times; dice</td></tr>" +
       "<tr><td>Rent (both utilities)</td><td>10 &times; dice</td></tr>" +
-      "<tr><td>Mortgage value</td><td>$75</td></tr></table>";
+      "</table>" +
+      '<div class="deed-foot">Mortgage value $75</div>';
   } else if (s.kind === "tax") {
     body += "<p>Pay $" + s.amount + " to the bank. Ouch.</p>";
   } else if (s.kind === "go") {
@@ -343,7 +388,8 @@ function showDeed(i) {
       (st.mortgaged ? " (mortgaged)" : "") +
       (st.houses ? " — " + (st.houses === 5 ? "HOTEL" : st.houses + " house" + (st.houses > 1 ? "s" : "")) : "") + ".</p>";
   }
-  openModal("<h2>" + esc(s.name) + "</h2>" + body + status +
+  const deedStyle = s.kind === "prop" || s.kind === "rail" || s.kind === "util";
+  openModal((deedStyle ? "" : "<h2>" + esc(s.name) + "</h2>") + body + status +
     '<div class="modal-actions"><button class="btn" onclick="document.getElementById(\'modal-wrap\').hidden=true">Close</button></div>');
 }
 

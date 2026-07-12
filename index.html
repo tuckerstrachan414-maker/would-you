@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#fff8ef">
-<title>BIG IF — Monopoly</title>
+<meta name="theme-color" content="#0c1210">
+<title>Monopoly — After Hours</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🎲</text></svg>">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app">
   <header id="topbar">
-    <h1 id="logo">MONO<span>POLY</span></h1>
+    <h1 id="logo">MONO<span>POLY</span><small>after hours</small></h1>
     <button id="menu-btn" class="btn btn-sm" hidden>Menu</button>
   </header>
   <main id="screen"><!-- rendered by ui.js --></main>
@@ -22,5 +22,10 @@
 <script src="game.js"></script>
 <script src="ai.js"></script>
 <script src="ui.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
 </body>
 </html>
