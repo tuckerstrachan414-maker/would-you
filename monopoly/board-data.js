@@ -9,16 +9,16 @@
 // rail: price 200, rent handled by engine (25/50/100/200)
 // util: price 150, rent 4x/10x dice
 const GROUPS = {
-  brown:  { name: "Brown",      color: "#8b5a3c" },
-  lblue:  { name: "Light Blue", color: "#8fd8f0" },
-  pink:   { name: "Pink",       color: "#f07fb0" },
-  orange: { name: "Orange",     color: "#ff9f45" },
-  red:    { name: "Red",        color: "#ff6b6b" },
-  yellow: { name: "Yellow",     color: "#ffd93d" },
-  green:  { name: "Green",      color: "#5fce6e" },
-  dblue:  { name: "Dark Blue",  color: "#4f74e0" },
-  rail:   { name: "Railroad",   color: "#2b2540" },
-  util:   { name: "Utility",    color: "#b0a8c8" },
+  brown:  { name: "Brown",      color: "#8a5f41" },
+  lblue:  { name: "Light Blue", color: "#5fa8bd" },
+  pink:   { name: "Pink",       color: "#c25f8e" },
+  orange: { name: "Orange",     color: "#c9752f" },
+  red:    { name: "Red",        color: "#b03535" },
+  yellow: { name: "Yellow",     color: "#c9a832" },
+  green:  { name: "Green",      color: "#3f8f57" },
+  dblue:  { name: "Dark Blue",  color: "#35569e" },
+  rail:   { name: "Railroad",   color: "#a89c7c" },
+  util:   { name: "Utility",    color: "#7f7f95" },
 };
 
 const SPACES = [
