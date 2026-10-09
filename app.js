@@ -475,7 +475,7 @@ function renderStats() {
   const answered = S.history.filter(h => h.choice);
   const pressed = answered.filter(h => h.choice === "press").length;
   const walked = answered.filter(h => h.choice === "walk").length;
-  const seenCount = Object.keys(S.seen).length;
+  const seenCount = Object.keys(S.seen).filter(id => QBYID[id]).length; // retired ids no longer count
   scr.innerHTML = '<h2 class="screen-title">' + icon("bars") + ' your stats</h2>' +
     statTile(seenCount + " / " + QUESTIONS.length, "questions pondered") +
     statTile(answered.length, "answers locked in") +
