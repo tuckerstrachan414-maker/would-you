@@ -30,7 +30,10 @@ No build step, vanilla JS, opens from file:// (live stats degrade gracefully).
 
 ## Layout
 - questions.js — the bank (1500 questions: wyr-001..500, btn-001..500,
-  hyp-001..500; 500 of each type; cats: silly/gross/food/money/powers/deep/spicy)
+  hyp-501..1000; 500 of each type; cats: silly/gross/food/money/powers/deep/spicy).
+  hyp-001..500 were retired and are burned — next new hypo is hyp-1001. Hypo
+  rows: one clear ask that fits a 60-char take, no straight double quotes or
+  backslashes in `text` (approve.js reads rows with a one-line regex).
 - icons.js — ICON scribble-SVG registry + icon()/catTag() helpers
 - approve.js / approve.bat — Tucker's take-moderation CLI (admin creds via
   firebase-tools login; safe to commit, contains no secrets)

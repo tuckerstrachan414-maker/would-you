@@ -46,7 +46,7 @@ function ask(rl, q) { return new Promise(res => rl.question(q, res)); }
   for (const row of rows) {
     const f = row.document.fields;
     const qid = f.qid.stringValue, text = f.text.stringValue, name = (f.name || {}).stringValue || "";
-    console.log("Q: " + (QB[qid] || qid));
+    console.log("Q: " + (QB[qid] || qid + "  (retired question - safe to reject)"));
     console.log('take: "' + text + '"' + (name ? "  — " + name : ""));
     const a = (await ask(rl, "approve? (y = approve / n = delete / s = skip) ")).trim().toLowerCase();
     if (a === "y") {
